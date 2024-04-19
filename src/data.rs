@@ -1,6 +1,9 @@
 use ark_bls12_381::{G1Affine, G2Affine};
+use ark_crypto_primitives::crh::pedersen::bytes_to_bits;
 use ark_serialize::CanonicalDeserialize;
-use std::io::Cursor;
+use std::{fs::File, io::Cursor, time::{SystemTime, UNIX_EPOCH}, io::Write};
+
+use crate::hash::hash_to_curve;
 
 pub fn puzzle_data() -> (G2Affine, Vec<Vec<u8>>, Vec<G1Affine>) {
     let pk_bytes = hex::decode("0113bbda74ea0480677e185568f5e7ad3dbe40fc02ccacba4c735e6e45001640a694d204ad25411f72f928c9fec00f098fc345e4b7ceb95a68a00983f5693d37929c80b09230fafe537ac1fa06c43009dd1efeb1fab2d9d2a816319f08b38f0b").unwrap();
@@ -528,4 +531,63 @@ pub fn puzzle_data() -> (G2Affine, Vec<Vec<u8>>, Vec<G1Affine>) {
         .collect();
 
     (pk, ms, sigs)
+}
+
+
+fn bytes_to_bits_string(bytes: &[u8]) -> String {
+    // let bits = bytes_to_bits(bytes);
+
+    let mut bits = Vec::with_capacity(bytes.len() * 8);
+    for byte in bytes {
+        for i in 0..8 {
+            let bit = (*byte >> i) & 1;
+            bits.push(bit == 1)
+        }
+    }
+
+    let mut s = String::with_capacity(bits.len());
+    for bit in bits {
+        if bit {
+            s.push('1');
+        } else {
+            s.push('0');
+        }
+    }
+    return s;
+}
+
+fn write_msgs_to_file(msgs: &Vec<Vec<u8>>) {
+    let mut file = File::create(format!(
+        "bits_vecs-{}",
+        (SystemTime::now().duration_since(UNIX_EPOCH))
+            .unwrap()
+            .as_millis()
+    ))
+    .unwrap();
+    for msg in msgs {
+        let blake = hash_to_curve(&msg).0;
+        let string = bytes_to_bits_string(&blake);
+        file.write_all(string.as_ref()).unwrap();
+        file.write_all(b"\n").unwrap();
+    }
+}
+
+#[test]
+fn write_msgs_to_file_test(){
+    puzzle_data();
+}
+
+#[test]
+fn gen_msg_test(){
+    // let msg = [0u8; 32];
+    let msg = b"minmin";
+    // hash 06d476fcfe60962e3a07cad71d0e022a2db7f666c385980670625518a75a8dac
+    // bits 0110000000101011011011100011111101111111000001100110100101110100010111001110000001010011111010111011100001110000010000000101010010110100111011010110111101100110110000111010000100011001011000000000111001000110101010100001100011100101010110101011000100110101
+    let (hash, _point) = hash_to_curve(msg);
+    for num in hash.iter(){
+        print!("{:02x}", num);
+    }
+    println!();
+
+    println!("{}", bytes_to_bits_string(&hash));
 }
